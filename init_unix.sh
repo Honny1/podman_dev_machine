@@ -132,7 +132,7 @@ echo "==> Enabling podman-next Copr repo..."
 podman machine ssh "${MACHINE_NAME}" "sudo curl -fsSL -o /etc/yum.repos.d/rhcontainerbot-podman-next.repo https://copr.fedorainfracloud.org/coprs/rhcontainerbot/podman-next/repo/fedora-\$(rpm -E %fedora)/rhcontainerbot-podman-next-fedora-\$(rpm -E %fedora).repo"
 
 echo "==> Upgrading base container stack from podman-next..."
-podman machine ssh "${MACHINE_NAME}" "sudo rpm-ostree override replace --experimental --from repo=copr:copr.fedorainfracloud.org:rhcontainerbot:podman-next podman podman-remote containers-common containers-common-extra netavark aardvark-dns buildah skopeo conmon"
+podman machine ssh "${MACHINE_NAME}" "sudo rpm-ostree override replace --experimental --from repo=copr:copr.fedorainfracloud.org:rhcontainerbot:podman-next netavark aardvark-dns conmon"
 
 echo "==> Installing developer dependencies..."
 podman machine ssh "${MACHINE_NAME}" "sudo rpm-ostree install --allow-inactive \
