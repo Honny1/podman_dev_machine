@@ -5,7 +5,7 @@ needed to build and test podman, buildah, netavark, and other container projects
 
 ## Requirements
 
-- **Podman 5.x** installed on the host
+- **Podman 5.x or 6.x** installed on the host
 
 ## Quick start
 
@@ -133,10 +133,24 @@ The machine comes with:
 - **Languages**: Go, Rust (cargo, clippy, rustfmt)
 - **Build tools**: gcc, make, automake, autoconf, libtool, protobuf-compiler
 - **Dev libraries**: gpgme-devel, libseccomp-devel, device-mapper-devel, btrfs-progs-devel, glib2-devel, libselinux-devel, ostree-devel, fuse3-devel, and more
-- **Container tools**: skopeo, buildah, runc, slirp4netns, passt (latest from podman-next Copr)
+- **Container tools**: skopeo, buildah, runc, passt (netavark/aardvark-dns from podman-next Copr)
 - **Linting & testing**: golangci-lint, ShellCheck, bats, codespell, python3-pip
 - **Utilities**: vim, tmux, htop, jq, fzf, ripgrep, bat, curl, wget, rsync
 - **Shell (with `-z`)**: zsh, oh-my-zsh, powerline-fonts, zsh-autosuggestions, zsh-syntax-highlighting
 
 The environment is pre-configured with `SELINUXOPT=""` (required for builds on
 virtio-fs mounts).
+
+## Podman 6 notes
+
+Podman 6 includes several breaking changes. The script handles them automatically:
+
+- **Default provider**: on macOS, the default machine provider changed from `applehv` to `libkrun`. The script no longer forces a provider and lets podman pick the default.
+- **slirp4netns removed**: replaced by `passt` (already in the package list).
+- **CNI removed**: `netavark` is the only network backend.
+- **iptables removed**: `nftables` is required (already in the package list).
+- **cgroups v1 removed**: cgroups v2 is required (Fedora CoreOS already uses v2).
+- **BoltDB removed**: SQLite is the only database backend.
+
+If upgrading an existing machine from podman 5, first upgrade to podman 5.8,
+reboot, then install podman 6. Or just destroy and recreate the machine.

@@ -3,7 +3,7 @@
     Initialize a podman machine for containers development.
 
 .DESCRIPTION
-    Requires: podman 5.x
+    Requires: podman 5.x or 6.x
 
 .PARAMETER MachineName
     Name of the podman machine (default: dev)
@@ -50,8 +50,8 @@ $versionOutput = & podman --version
 if ($versionOutput -match '(\d+)\.\d+\.\d+') {
     $podmanMajor = [int]$Matches[1]
     $podmanVersion = $Matches[0]
-    if ($podmanMajor -ne 5) {
-        Write-Error "podman 5.x is required (found $podmanVersion)."
+    if ($podmanMajor -lt 5 -or $podmanMajor -gt 6) {
+        Write-Error "podman 5.x or 6.x is required (found $podmanVersion)."
     }
 } else {
     Write-Error "Could not determine podman version."
@@ -63,12 +63,12 @@ $totalMemMB = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysical
 
 Write-Host "==> Creating podman dev machine '$MachineName' (cpus=$cpus, mem=${totalMemMB}MB, disk=${Disk}GB)"
 
-& podman machine init $MachineName `
-    --cpus $cpus `
-    --memory $totalMemMB `
-    --disk-size $Disk `
-    --rootful `
-    --now
+$initArgs = @("machine", "init", $MachineName, "--cpus", $cpus, "--memory", $totalMemMB, "--disk-size", $Disk, "--rootful", "--now")
+if ($podmanMajor -ge 6) {
+    $initArgs += "--update-connection=false"
+}
+
+& podman @initArgs
 
 if ($LASTEXITCODE -ne 0) { Write-Error "podman machine init failed." }
 
@@ -90,13 +90,17 @@ Write-Host "==> Upgrading base container stack from podman-next..."
 & podman machine ssh $MachineName "sudo rpm-ostree override replace --experimental --from repo=copr:copr.fedorainfracloud.org:rhcontainerbot:podman-next netavark aardvark-dns conmon"
 
 Write-Host "==> Installing developer dependencies..."
-& podman machine ssh $MachineName "sudo rpm-ostree install --allow-inactive golang gcc make automake autoconf libtool pkgconfig redhat-rpm-config rust cargo clippy rustfmt protobuf-compiler protobuf-c protobuf-devel systemd systemd-devel gpgme-devel libassuan-devel libgpg-error-devel libseccomp-devel device-mapper-devel btrfs-progs-devel glib2-devel libselinux-devel ostree-devel libcap-devel libnet-devel glibc-devel glibc-static libblkid-devel shadow-utils-subid-devel fuse3 fuse3-devel fuse-overlayfs composefs sqlite-devel openssl-devel libxml2-devel selinux-policy-devel container-selinux policycoreutils passt slirp4netns bind-utils net-tools iproute-tc nftables git-core go-md2man man-db perl perl-Clone perl-FindBin perl-File-Find pre-commit bats ShellCheck python3-pip codespell attr httpd-tools openssl gnupg2 xfsprogs dbus-daemon dnsmasq firewalld vim-enhanced tmux htop jq curl wget rsync unzip tar xz zip fzf ripgrep bat findutils lsof socat nmap-ncat skopeo buildah runc bzip2 git-daemon $zshPkgs"
+& podman machine ssh $MachineName "sudo rpm-ostree install --allow-inactive golang gcc make automake autoconf libtool pkgconfig redhat-rpm-config rust cargo clippy rustfmt protobuf-compiler protobuf-c protobuf-devel systemd systemd-devel gpgme-devel libassuan-devel libgpg-error-devel libseccomp-devel device-mapper-devel btrfs-progs-devel glib2-devel libselinux-devel ostree-devel libcap-devel libnet-devel glibc-devel glibc-static libblkid-devel shadow-utils-subid-devel fuse3 fuse3-devel fuse-overlayfs composefs sqlite-devel openssl-devel libxml2-devel selinux-policy-devel container-selinux policycoreutils passt bind-utils net-tools iproute-tc nftables git-core go-md2man man-db perl perl-Clone perl-FindBin perl-File-Find pre-commit bats ShellCheck python3-pip codespell attr httpd-tools openssl gnupg2 xfsprogs dbus-daemon dnsmasq firewalld vim-enhanced tmux htop jq curl wget rsync unzip tar xz zip fzf ripgrep bat findutils lsof socat nmap-ncat skopeo buildah runc bzip2 git-daemon $zshPkgs"
 
 if ($LASTEXITCODE -ne 0) { Write-Error "Package installation failed." }
 
 Write-Host "==> Rebooting machine to apply all changes..."
 & podman machine stop $MachineName
-& podman machine start $MachineName
+$startArgs = @("machine", "start", $MachineName)
+if ($podmanMajor -ge 6) {
+    $startArgs += "--update-connection=false"
+}
+& podman @startArgs
 
 Write-Host "==> Waiting for machine to be ready..."
 do {

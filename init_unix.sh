@@ -1,7 +1,7 @@
 #!/bin/bash
 # init_unix.sh - Initialize a podman machine for containers development
 #
-# Requires: podman 5.x
+# Requires: podman 5.x or 6.x
 #
 # Usage:
 #   ./init_unix.sh [options] [machine-name]
@@ -50,8 +50,8 @@ fi
 
 PODMAN_VERSION=$(podman --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
 PODMAN_MAJOR=${PODMAN_VERSION%%.*}
-if [[ "${PODMAN_MAJOR}" -ne 5 ]]; then
-    echo "Error: podman 5.x is required (found ${PODMAN_VERSION})." >&2
+if [[ "${PODMAN_MAJOR}" -lt 5 || "${PODMAN_MAJOR}" -gt 6 ]]; then
+    echo "Error: podman 5.x or 6.x is required (found ${PODMAN_VERSION})." >&2
     exit 1
 fi
 
@@ -94,7 +94,6 @@ case "$(uname -s)" in
     Darwin)
         CPUS=$(sysctl -n hw.ncpu)
         MEMORY=$(( $(sysctl -n hw.memsize) / 1024 / 1024 / 2 ))
-        export CONTAINERS_MACHINE_PROVIDER=applehv
         ;;
     Linux)
         CPUS=$(nproc)
@@ -107,16 +106,21 @@ case "$(uname -s)" in
 esac
 
 DISK="${DISK:-100}"
-PROVIDER="${CONTAINERS_MACHINE_PROVIDER:-default}"
 
-echo "==> Creating podman dev machine '${MACHINE_NAME}' (provider=${PROVIDER}, cpus=${CPUS}, mem=${MEMORY}MB, disk=${DISK}GB)"
+echo "==> Creating podman dev machine '${MACHINE_NAME}' (cpus=${CPUS}, mem=${MEMORY}MB, disk=${DISK}GB)"
+
+INIT_EXTRA_FLAGS=""
+if [[ "${PODMAN_MAJOR}" -ge 6 ]]; then
+    INIT_EXTRA_FLAGS="--update-connection=false"
+fi
 
 podman machine init "${MACHINE_NAME}" \
     --cpus "${CPUS}" \
     --memory "${MEMORY}" \
     --disk-size "${DISK}" \
     --rootful \
-    --now
+    --now \
+    ${INIT_EXTRA_FLAGS}
 
 echo "==> Waiting for machine to be ready..."
 until podman machine ssh "${MACHINE_NAME}" "echo ready" 2>/dev/null; do
@@ -145,7 +149,7 @@ podman machine ssh "${MACHINE_NAME}" "sudo rpm-ostree install --allow-inactive \
     glibc-static libblkid-devel shadow-utils-subid-devel \
     fuse3 fuse3-devel fuse-overlayfs composefs sqlite-devel openssl-devel libxml2-devel \
     selinux-policy-devel container-selinux policycoreutils \
-    passt slirp4netns bind-utils net-tools iproute-tc nftables \
+    passt bind-utils net-tools iproute-tc nftables \
     git-core go-md2man man-db \
     perl perl-Clone perl-FindBin perl-File-Find \
     pre-commit \
@@ -159,7 +163,7 @@ podman machine ssh "${MACHINE_NAME}" "sudo rpm-ostree install --allow-inactive \
 
 echo "==> Rebooting machine to apply all changes..."
 podman machine stop "${MACHINE_NAME}"
-podman machine start "${MACHINE_NAME}"
+podman machine start "${MACHINE_NAME}" "${INIT_EXTRA_FLAGS}"
 
 echo "==> Waiting for machine to be ready..."
 until podman machine ssh "${MACHINE_NAME}" "echo ready" 2>/dev/null; do
