@@ -110,6 +110,11 @@ do {
 
 & podman machine ssh $MachineName "sudo ldconfig"
 
+# CoreOS has /root -> /var/roothome symlink which breaks Go path resolution.
+# Ensure HOME=/var/roothome so bash and Go getcwd() agree on paths.
+Write-Host "==> Ensuring root HOME is /var/roothome (not /root symlink)..."
+& podman machine ssh $MachineName "if [ `"`$(getent passwd root | cut -d: -f6)`" != '/var/roothome' ]; then sudo sed -i 's|:/root:|:/var/roothome:|' /etc/passwd; fi"
+
 Write-Host "==> Installing golangci-lint..."
 & podman machine ssh $MachineName "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sudo sh -s -- -b /usr/local/bin"
 
@@ -173,8 +178,8 @@ export SELINUXOPT=""
     }
 
     if ($ProjectDir) {
-        Write-Host "==> Creating symlink ~/projects -> $ProjectDir on guest..."
-        & podman machine ssh $MachineName "ln -sfn '$ProjectDir' ~/projects"
+        Write-Host "==> Bind-mounting $ProjectDir -> ~/projects on guest..."
+        & podman machine ssh $MachineName "sudo mkdir -p ~/projects && sudo mount --bind '$ProjectDir' ~/projects && echo '$ProjectDir $guestHome/projects none bind 0 0' | sudo tee -a /etc/fstab > /dev/null"
     }
 
     if ($Zsh) {
@@ -189,7 +194,7 @@ Write-Host "==> Dev machine '$MachineName' is ready!"
 Write-Host ""
 Write-Host "  SSH into it:   podman machine ssh $MachineName"
 if ($ProjectDir) {
-    Write-Host "  Projects at:   ~/projects (-> $ProjectDir)"
+    Write-Host "  Projects at:   ~/projects (bind-mount of $ProjectDir)"
 }
 if ($GitConfig) {
     Write-Host "  Git config:    copied from host"

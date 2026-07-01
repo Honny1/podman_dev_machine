@@ -8,7 +8,7 @@
 #
 # Options:
 #   -z, --zsh            Install and configure zsh + oh-my-zsh
-#   -p, --project-dir    Host directory to symlink as ~/projects in the guest
+#   -p, --project-dir    Host directory to bind-mount as ~/projects in the guest
 #   -g, --git-config     Copy local ~/.gitconfig (and ~/.gitignore_global) into the guest
 #   -h, --help           Show this help message
 #
@@ -29,7 +29,7 @@
 #   - zsh + oh-my-zsh (agnoster theme) auto-launched on SSH (with -z)
 #   - Host git config copied into guest (with -g)
 #   - SELINUXOPT="" set (needed for builds on virtio-fs mounts)
-#   - ~/projects symlink to host dir (with -p)
+#   - ~/projects bind-mount of host dir (with -p)
 #
 # Building podman inside the machine:
 #   podman machine ssh dev
@@ -172,6 +172,11 @@ done
 
 podman machine ssh "${MACHINE_NAME}" "sudo ldconfig"
 
+# CoreOS has /root -> /var/roothome symlink which breaks Go path resolution.
+# Ensure HOME=/var/roothome so bash and Go getcwd() agree on paths.
+echo "==> Ensuring root HOME is /var/roothome (not /root symlink)..."
+podman machine ssh "${MACHINE_NAME}" "if [ \"\$(getent passwd root | cut -d: -f6)\" != '/var/roothome' ]; then sudo sed -i 's|:/root:|:/var/roothome:|' /etc/passwd; fi"
+
 echo "==> Installing golangci-lint..."
 podman machine ssh "${MACHINE_NAME}" "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sudo sh -s -- -b /usr/local/bin"
 
@@ -232,8 +237,8 @@ EOF
 fi
 
 if [[ -n "${PROJECT_DIR}" ]]; then
-    echo "==> Creating symlink ~/projects -> ${PROJECT_DIR} on guest..."
-    podman machine ssh "${MACHINE_NAME}" "ln -sfn '${PROJECT_DIR}' ~/projects"
+    echo "==> Bind-mounting ${PROJECT_DIR} -> ~/projects on guest..."
+    podman machine ssh "${MACHINE_NAME}" "sudo mkdir -p ~/projects && sudo mount --bind '${PROJECT_DIR}' ~/projects && echo '${PROJECT_DIR} ${GUEST_HOME}/projects none bind 0 0' | sudo tee -a /etc/fstab > /dev/null"
 fi
 
 if $INSTALL_ZSH; then
@@ -245,7 +250,7 @@ echo "==> Dev machine '${MACHINE_NAME}' is ready!"
 echo ""
 echo "  SSH into it:   podman machine ssh ${MACHINE_NAME}"
 if [[ -n "${PROJECT_DIR}" ]]; then
-echo "  Projects at:   ~/projects (-> ${PROJECT_DIR})"
+echo "  Projects at:   ~/projects (bind-mount of ${PROJECT_DIR})"
 fi
 if $COPY_GIT_CONFIG; then
 echo "  Git config:    copied from host"

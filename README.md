@@ -21,8 +21,8 @@ needed to build and test podman, buildah, netavark, and other container projects
 .\init_windows.ps1 -Zsh -ProjectDir C:\Users\me\projects -MachineName dev
 ```
 
-This creates a machine named `dev` with zsh and a `~/projects` symlink pointing
-to your host directory.
+This creates a machine named `dev` with zsh and a bind mount of your host
+directory at `~/projects` (persisted across reboots via fstab).
 
 ## Usage
 
